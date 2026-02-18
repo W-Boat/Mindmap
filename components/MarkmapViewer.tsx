@@ -8,17 +8,24 @@ interface MarkmapViewerProps {
   content: string;
   className?: string;
   fitView?: boolean;
+  showToolbar?: boolean;
 }
 
 const transformer = new Transformer();
 
-export const MarkmapViewer: React.FC<MarkmapViewerProps> = ({ content, className, fitView = true }) => {
+export const MarkmapViewer: React.FC<MarkmapViewerProps> = ({
+  content,
+  className,
+  fitView = true,
+  showToolbar: initialShowToolbar = true
+}) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const mmRef = useRef<Markmap | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { isDarkMode } = useDarkMode();
-  const [showToolbar, setShowToolbar] = useState(true);
+  const [showToolbar, setShowToolbar] = useState(initialShowToolbar);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   useEffect(() => {
     if (svgRef.current && !mmRef.current) {
@@ -69,25 +76,39 @@ export const MarkmapViewer: React.FC<MarkmapViewerProps> = ({ content, className
   };
 
   const handleZoomIn = () => {
-    if (mmRef.current && svgRef.current) {
+    if (svgRef.current && mmRef.current) {
       try {
-        // Try using the zoom method if available
-        const zoomLevel = (mmRef.current as any).getViewport?.()?.scale || 1;
-        mmRef.current.fit();
+        const newZoom = Math.min(zoomLevel * 1.2, 5);
+        setZoomLevel(newZoom);
+
+        // Apply SVG transform for zoom
+        const g = svgRef.current.querySelector('g');
+        if (g) {
+          const currentTransform = g.getAttribute('transform') || '';
+          const baseTransform = currentTransform.replace(/scale\([^)]*\)/g, '').trim();
+          g.setAttribute('transform', `${baseTransform} scale(${newZoom})`);
+        }
       } catch (error) {
-        console.log('Zoom in not available');
+        console.log('Zoom in error:', error);
       }
     }
   };
 
   const handleZoomOut = () => {
-    if (mmRef.current && svgRef.current) {
+    if (svgRef.current && mmRef.current) {
       try {
-        // Try using the zoom method if available
-        const zoomLevel = (mmRef.current as any).getViewport?.()?.scale || 1;
-        mmRef.current.fit();
+        const newZoom = Math.max(zoomLevel / 1.2, 0.5);
+        setZoomLevel(newZoom);
+
+        // Apply SVG transform for zoom
+        const g = svgRef.current.querySelector('g');
+        if (g) {
+          const currentTransform = g.getAttribute('transform') || '';
+          const baseTransform = currentTransform.replace(/scale\([^)]*\)/g, '').trim();
+          g.setAttribute('transform', `${baseTransform} scale(${newZoom})`);
+        }
       } catch (error) {
-        console.log('Zoom out not available');
+        console.log('Zoom out error:', error);
       }
     }
   };
@@ -95,14 +116,32 @@ export const MarkmapViewer: React.FC<MarkmapViewerProps> = ({ content, className
   const handleFitWindow = () => {
     if (mmRef.current) {
       mmRef.current.fit();
+      setZoomLevel(1);
     }
   };
 
   const handleToggleRecursively = () => {
     // Toggle recursively would hide/show all child nodes
-    // This is a placeholder - actual implementation depends on markmap API
     console.log('Toggle recursively clicked');
   };
+
+  if (!initialShowToolbar) {
+    return (
+      <div
+        ref={containerRef}
+        className={`relative bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden ${className}`}
+      >
+        <button
+          onClick={toggleFullscreen}
+          className="absolute top-4 right-4 z-10 p-2 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full shadow-md backdrop-blur-sm transition-all"
+          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+        >
+          {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+        </button>
+        <svg ref={svgRef} className="w-full h-full block" />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -113,40 +152,40 @@ export const MarkmapViewer: React.FC<MarkmapViewerProps> = ({ content, className
     >
       {/* Toolbar */}
       {showToolbar && (
-        <div className="absolute bottom-4 right-4 z-20 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 flex flex-col gap-1 p-2">
+        <div className="absolute bottom-4 right-4 z-50 bg-white/95 dark:bg-slate-700/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 dark:border-slate-600 flex flex-col gap-1 p-2">
           <button
             onClick={handleZoomIn}
-            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+            className="p-2 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 rounded transition-colors"
             title="Zoom in"
           >
             <ZoomIn size={18} />
           </button>
           <button
             onClick={handleZoomOut}
-            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+            className="p-2 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 rounded transition-colors"
             title="Zoom out"
           >
             <ZoomOut size={18} />
           </button>
-          <div className="h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
+          <div className="h-px bg-slate-200 dark:bg-slate-600 my-1"></div>
           <button
             onClick={handleFitWindow}
-            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+            className="p-2 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 rounded transition-colors"
             title="Fit window size"
           >
             <Maximize size={18} />
           </button>
           <button
             onClick={handleToggleRecursively}
-            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+            className="p-2 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 rounded transition-colors"
             title="Toggle recursively"
           >
             <ChevronDown size={18} />
           </button>
-          <div className="h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
+          <div className="h-px bg-slate-200 dark:bg-slate-600 my-1"></div>
           <button
             onClick={() => setShowToolbar(false)}
-            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+            className="p-2 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 rounded transition-colors"
             title="Hide toolbar"
           >
             <Eye size={18} className="opacity-50" />
@@ -158,7 +197,7 @@ export const MarkmapViewer: React.FC<MarkmapViewerProps> = ({ content, className
       {!showToolbar && (
         <button
           onClick={() => setShowToolbar(true)}
-          className="absolute bottom-4 right-4 z-20 p-2 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full shadow-md backdrop-blur-sm transition-all"
+          className="absolute bottom-4 right-4 z-50 p-2 bg-white/80 dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 rounded-full shadow-md backdrop-blur-sm transition-all"
           title="Show toolbar"
         >
           <Eye size={20} />
@@ -168,7 +207,7 @@ export const MarkmapViewer: React.FC<MarkmapViewerProps> = ({ content, className
       {/* Fullscreen toggle */}
       <button
         onClick={toggleFullscreen}
-        className="absolute top-4 right-4 z-10 p-2 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full shadow-md backdrop-blur-sm transition-all"
+        className="absolute top-4 right-4 z-10 p-2 bg-white/80 dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-full shadow-md backdrop-blur-sm transition-all"
         title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
       >
         {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}

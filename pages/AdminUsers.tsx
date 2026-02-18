@@ -71,10 +71,13 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
-  const filteredUsers = users.filter(u =>
-    u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.username.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = users.filter(u => {
+    const search = (searchTerm || '').toLowerCase();
+    return (
+      (u.email || '').toLowerCase().includes(search) ||
+      (u.username || '').toLowerCase().includes(search)
+    );
+  });
 
   if (loading) {
     return (

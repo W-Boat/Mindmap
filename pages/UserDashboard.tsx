@@ -64,10 +64,13 @@ export const UserDashboard: React.FC = () => {
     }
   };
 
-  const filteredMaps = maps.filter(m =>
-    m.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (m.description && m.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredMaps = maps.filter(m => {
+    const search = (searchTerm || '').toLowerCase();
+    return (
+      (m.title || '').toLowerCase().includes(search) ||
+      (m.description || '').toLowerCase().includes(search)
+    );
+  });
 
   if (loading) {
     return (

@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
-import { hashPassword } from '../../lib/auth';
+import { hashPassword } from '../lib/auth';
 
 export default async (req: VercelRequest, res: VercelResponse) => {
   // CORS headers

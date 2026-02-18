@@ -37,10 +37,13 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const filteredMaps = maps.filter(m => 
-    m.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (m.description && m.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredMaps = maps.filter(m => {
+    const search = (searchTerm || '').toLowerCase();
+    return (
+      (m.title || '').toLowerCase().includes(search) ||
+      (m.description || '').toLowerCase().includes(search)
+    );
+  });
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto h-full flex flex-col">
