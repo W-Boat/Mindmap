@@ -1,11 +1,7 @@
+import { User } from '../types';
+
 const TOKEN_KEY = 'mindmap_token';
 const USER_KEY = 'mindmap_user';
-
-export interface User {
-  id: string;
-  email: string;
-  username: string;
-}
 
 export interface AuthResponse {
   token: string;
@@ -15,12 +11,13 @@ export interface AuthResponse {
 export async function signup(
   email: string,
   username: string,
-  password: string
+  password: string,
+  language?: string
 ): Promise<AuthResponse> {
   const response = await fetch('/api/auth/signup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, username, password }),
+    body: JSON.stringify({ email, username, password, language }),
   });
 
   if (!response.ok) {

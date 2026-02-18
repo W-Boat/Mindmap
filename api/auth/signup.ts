@@ -18,7 +18,7 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     return;
   }
 
-  const { email, username, password } = req.body;
+  const { email, username, password, language } = req.body;
 
   // Validation
   if (!email || !username || !password) {
@@ -45,11 +45,17 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     // Hash password
     const passwordHash = await hashPassword(password);
 
+    // Determine role - first user is admin, others are regular users
+    const userCount = await sql`SELECT COUNT(*) as count FROM users`;
+    const isFirstUser = userCount.rows[0].count === 0;
+    const role = isFirstUser ? 'admin' : 'user';
+    const lang = language === 'en' ? 'en' : 'zh';
+
     // Create user
     const result = await sql`
-      INSERT INTO users (email, username, password_hash)
-      VALUES (${email}, ${username}, ${passwordHash})
-      RETURNING id, email, username
+      INSERT INTO users (email, username, password_hash, role, language)
+      VALUES (${email}, ${username}, ${passwordHash}, ${role}, ${lang})
+      RETURNING id, email, username, role, language
     `;
 
     const user = result.rows[0];
@@ -59,6 +65,8 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       userId: user.id,
       email: user.email,
       username: user.username,
+      role: user.role,
+      language: user.language,
     });
 
     res.status(201).json({
@@ -68,6 +76,8 @@ export default async (req: VercelRequest, res: VercelResponse) => {
         id: user.id,
         email: user.email,
         username: user.username,
+        role: user.role,
+        language: user.language,
       },
     });
   } catch (error) {

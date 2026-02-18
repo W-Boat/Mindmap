@@ -29,7 +29,7 @@ export default async (req: VercelRequest, res: VercelResponse) => {
   try {
     // Find user
     const result = await sql`
-      SELECT id, email, username, password_hash FROM users WHERE email = ${email}
+      SELECT id, email, username, password_hash, role, status, language FROM users WHERE email = ${email}
     `;
 
     if (result.rows.length === 0) {
@@ -38,6 +38,12 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     }
 
     const user = result.rows[0];
+
+    // Check if user is approved
+    if (user.status !== 'approved') {
+      res.status(403).json({ error: 'Your account is not approved yet' });
+      return;
+    }
 
     // Verify password
     const isValidPassword = await verifyPassword(password, user.password_hash);
@@ -52,6 +58,8 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       userId: user.id,
       email: user.email,
       username: user.username,
+      role: user.role,
+      language: user.language,
     });
 
     res.status(200).json({
@@ -61,6 +69,9 @@ export default async (req: VercelRequest, res: VercelResponse) => {
         id: user.id,
         email: user.email,
         username: user.username,
+        role: user.role,
+        status: user.status,
+        language: user.language,
       },
     });
   } catch (error) {

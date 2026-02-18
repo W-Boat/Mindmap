@@ -13,53 +13,64 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     return;
   }
 
-  // Verify authentication
+  // Optional authentication (GET allows unauthenticated for public maps)
   const token = extractToken(req.headers.authorization);
-  if (!token) {
-    res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
-    return;
-  }
-
-  const payload = verifyToken(token);
-  if (!payload) {
-    res.status(401).json({ error: 'Unauthorized: Invalid token' });
-    return;
-  }
-
-  const userId = payload.userId;
+  const payload = token ? verifyToken(token) : null;
+  const userId = payload?.userId || null;
 
   try {
     if (req.method === 'GET') {
-      // List all mind maps for the user
-      const result = await sql`
-        SELECT id, title, description, created_at, updated_at
-        FROM mind_maps
-        WHERE user_id = ${userId}
-        ORDER BY updated_at DESC
-      `;
+      let result;
+      if (userId) {
+        // Authenticated: return public maps + user's own private maps
+        result = await sql`
+          SELECT id, title, description, is_public, user_id, created_at, updated_at
+          FROM mind_maps
+          WHERE is_public = true OR user_id = ${userId}
+          ORDER BY updated_at DESC
+        `;
+      } else {
+        // Unauthenticated: return only public maps
+        result = await sql`
+          SELECT id, title, description, is_public, user_id, created_at, updated_at
+          FROM mind_maps
+          WHERE is_public = true
+          ORDER BY updated_at DESC
+        `;
+      }
 
       res.status(200).json({
         mindMaps: result.rows.map((row: any) => ({
           id: row.id,
           title: row.title,
           description: row.description,
+          isPublic: row.is_public,
+          userId: row.user_id,
           createdAt: new Date(row.created_at).getTime(),
           updatedAt: new Date(row.updated_at).getTime(),
         })),
       });
     } else if (req.method === 'POST') {
+      // Must be authenticated to create
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized: Must be logged in to create mind maps' });
+        return;
+      }
+
       // Create new mind map
-      const { title, content, description } = req.body;
+      const { title, content, description, isPublic } = req.body;
 
       if (!title || !content) {
         res.status(400).json({ error: 'Title and content are required' });
         return;
       }
 
+      const publicFlag = isPublic !== undefined ? isPublic : true;
+
       const result = await sql`
-        INSERT INTO mind_maps (user_id, title, description, content)
-        VALUES (${userId}, ${title}, ${description || null}, ${content})
-        RETURNING id, title, description, created_at, updated_at
+        INSERT INTO mind_maps (user_id, title, description, content, is_public)
+        VALUES (${userId}, ${title}, ${description || null}, ${content}, ${publicFlag})
+        RETURNING id, title, description, is_public, user_id, created_at, updated_at
       `;
 
       const mindMap = result.rows[0];
@@ -70,6 +81,8 @@ export default async (req: VercelRequest, res: VercelResponse) => {
           title: mindMap.title,
           description: mindMap.description,
           content,
+          isPublic: mindMap.is_public,
+          userId: mindMap.user_id,
           createdAt: new Date(mindMap.created_at).getTime(),
           updatedAt: new Date(mindMap.updated_at).getTime(),
         },

@@ -13,20 +13,11 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     return;
   }
 
-  // Verify authentication
+  // Optional authentication
   const token = extractToken(req.headers.authorization);
-  if (!token) {
-    res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
-    return;
-  }
+  const payload = token ? verifyToken(token) : null;
+  const userId = payload?.userId || null;
 
-  const payload = verifyToken(token);
-  if (!payload) {
-    res.status(401).json({ error: 'Unauthorized: Invalid token' });
-    return;
-  }
-
-  const userId = payload.userId;
   const { id } = req.query;
 
   if (!id || typeof id !== 'string') {
@@ -38,9 +29,9 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     if (req.method === 'GET') {
       // Get single mind map
       const result = await sql`
-        SELECT id, title, description, content, created_at, updated_at
+        SELECT id, title, description, content, is_public, user_id, created_at, updated_at
         FROM mind_maps
-        WHERE id = ${id} AND user_id = ${userId}
+        WHERE id = ${id}
       `;
 
       if (result.rows.length === 0) {
@@ -49,33 +40,51 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       }
 
       const mindMap = result.rows[0];
+
+      // Check access: public maps visible to all, private maps only to owner
+      if (!mindMap.is_public && mindMap.user_id !== userId) {
+        res.status(403).json({ error: 'Access denied: This mind map is private' });
+        return;
+      }
+
       res.status(200).json({
         mindMap: {
           id: mindMap.id,
           title: mindMap.title,
           description: mindMap.description,
           content: mindMap.content,
+          isPublic: mindMap.is_public,
+          userId: mindMap.user_id,
           createdAt: new Date(mindMap.created_at).getTime(),
           updatedAt: new Date(mindMap.updated_at).getTime(),
         },
       });
     } else if (req.method === 'PUT') {
+      // Must be authenticated to update
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
       // Update mind map
-      const { title, content, description } = req.body;
+      const { title, content, description, isPublic } = req.body;
 
       if (!title || !content) {
         res.status(400).json({ error: 'Title and content are required' });
         return;
       }
 
+      const publicFlag = isPublic !== undefined ? isPublic : true;
+
       const result = await sql`
         UPDATE mind_maps
         SET title = ${title},
             description = ${description || null},
             content = ${content},
+            is_public = ${publicFlag},
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ${id} AND user_id = ${userId}
-        RETURNING id, title, description, content, created_at, updated_at
+        RETURNING id, title, description, content, is_public, user_id, created_at, updated_at
       `;
 
       if (result.rows.length === 0) {
@@ -90,11 +99,19 @@ export default async (req: VercelRequest, res: VercelResponse) => {
           title: mindMap.title,
           description: mindMap.description,
           content: mindMap.content,
+          isPublic: mindMap.is_public,
+          userId: mindMap.user_id,
           createdAt: new Date(mindMap.created_at).getTime(),
           updatedAt: new Date(mindMap.updated_at).getTime(),
         },
       });
     } else if (req.method === 'DELETE') {
+      // Must be authenticated to delete
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
       // Delete mind map
       const result = await sql`
         DELETE FROM mind_maps
