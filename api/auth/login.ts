@@ -55,6 +55,16 @@ export default async (req: VercelRequest, res: VercelResponse) => {
   }
 
   try {
+    // Check if database is connected
+    if (!process.env.POSTGRES_URL && !process.env.VERCEL_POSTGRES_URL && !process.env.VERCEL_POSTGRES_DATABASE_URL) {
+      console.error('Database connection error: No POSTGRES_URL environment variable set');
+      res.status(500).json({
+        error: 'Database connection failed. Check POSTGRES_URL environment variable.',
+        debug: process.env.NODE_ENV === 'development' ? 'POSTGRES_URL not configured' : undefined
+      });
+      return;
+    }
+
     // Find user
     const result = await sql`
       SELECT id, email, username, password_hash, role, status, language FROM users WHERE email = ${email}
@@ -103,7 +113,14 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Login failed' });
+    console.error('Login error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      type: error instanceof Error ? error.constructor.name : typeof error,
+    });
+    res.status(500).json({
+      error: 'Login failed',
+      debug: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+    });
   }
 };

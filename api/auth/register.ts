@@ -86,7 +86,14 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       },
     });
   } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ error: 'Failed to submit registration application' });
+    console.error('Register error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      type: error instanceof Error ? error.constructor.name : typeof error,
+    });
+    res.status(500).json({
+      error: 'Failed to submit registration application',
+      debug: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+    });
   }
 };
