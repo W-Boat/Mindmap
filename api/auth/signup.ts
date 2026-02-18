@@ -1,6 +1,26 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
-import { hashPassword, generateToken } from '../lib/auth';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+interface JWTPayload {
+  userId: string;
+  email: string;
+  username: string;
+  role: 'user' | 'admin';
+  language: 'zh' | 'en';
+}
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+}
+
+function generateToken(payload: JWTPayload): string {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+}
 
 export default async (req: VercelRequest, res: VercelResponse) => {
   // CORS headers

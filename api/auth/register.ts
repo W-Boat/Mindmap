@@ -1,6 +1,11 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
-import { hashPassword } from '../lib/auth';
+import bcrypt from 'bcryptjs';
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+}
 
 export default async (req: VercelRequest, res: VercelResponse) => {
   // CORS headers

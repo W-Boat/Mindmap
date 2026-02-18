@@ -1,6 +1,35 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
-import { verifyToken, extractToken, hashPassword, generateToken } from '../../../lib/auth';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+interface JWTPayload {
+  userId: string;
+  email: string;
+  username: string;
+  role: 'user' | 'admin';
+  language: 'zh' | 'en';
+}
+
+function verifyToken(token: string): JWTPayload | null {
+  try {
+    return jwt.verify(token, JWT_SECRET) as JWTPayload;
+  } catch {
+    return null;
+  }
+}
+
+function extractToken(authHeader: string | undefined): string | null {
+  if (!authHeader) return null;
+  const parts = authHeader.split(' ');
+  return parts.length === 2 && parts[0] === 'Bearer' ? parts[1] : null;
+}
+
+function generateToken(payload: JWTPayload): string {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+}
 
 export default async (req: VercelRequest, res: VercelResponse) => {
   // CORS headers
