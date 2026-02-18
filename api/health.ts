@@ -88,10 +88,20 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       throw dbError;
     }
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    console.error('Health check error:', {
+      message: errorMessage,
+      stack: errorStack,
+      type: error instanceof Error ? error.constructor.name : typeof error,
+    });
+
     res.status(503).json({
       status: 'error',
       timestamp: new Date().toISOString(),
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
       environment: {
         POSTGRES_URL: !!process.env.POSTGRES_URL,
         POSTGRES_URL_POOLED: !!process.env.POSTGRES_URL_POOLED,
@@ -99,11 +109,17 @@ export default async (req: VercelRequest, res: VercelResponse) => {
         NODE_ENV: process.env.NODE_ENV || 'development',
       },
       troubleshooting: [
-        'Ensure POSTGRES_URL_POOLED is set in Vercel environment variables',
-        'POSTGRES_URL_POOLED is auto-created when you link Vercel Postgres',
-        'If missing, go to Vercel Dashboard → Project → Storage → Postgres → Copy connection string → Paste as POSTGRES_URL_POOLED',
-        'Redeploy the project',
-        'Check Vercel deployment logs for more details'
+        'Database connection failed. Common causes:',
+        '1. Database server is down or unreachable',
+        '2. Connection credentials in POSTGRES_URL_POOLED are incorrect',
+        '3. Firewall or network issue preventing connection',
+        '4. Database has not been initialized yet',
+        '',
+        'Solutions:',
+        '- Check database status in Vercel Dashboard → Storage → Postgres',
+        '- Verify POSTGRES_URL_POOLED connection string is correct',
+        '- Initialize database: export POSTGRES_URL_POOLED=... && npm run init-db',
+        '- Check Vercel deployment logs for more details'
       ],
     });
   }
