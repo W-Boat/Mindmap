@@ -4,9 +4,18 @@
   "installCommand": "npm install",
   "framework": "vite",
   "outputDirectory": "dist",
-  "env": [
-    "DEEPSEEK_API_KEY"
-  ],
+  "env": {
+    "DEEPSEEK_API_KEY": {
+      "description": "DeepSeek API key for AI content generation"
+    },
+    "JWT_SECRET": {
+      "description": "Secret key for JWT token signing (generate with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
+    },
+    "NODE_ENV": {
+      "description": "Node environment",
+      "default": "production"
+    }
+  },
   "functions": {
     "api/**/*.ts": {
       "runtime": "nodejs20.x"
@@ -25,3 +34,4 @@
     }
   ]
 }
+
