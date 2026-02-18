@@ -35,12 +35,17 @@ export const Editor: React.FC = () => {
   }, [id, navigate]);
 
   const loadMindMap = async () => {
-    const map = await getMindMapById(id!);
-    if (map) {
-      setTitle(map.title);
-      setDescription(map.description || '');
-      setContent(map.content);
-    } else {
+    try {
+      const map = await getMindMapById(id!);
+      if (map) {
+        setTitle(map.title);
+        setDescription(map.description || '');
+        setContent(map.content);
+      } else {
+        navigate('/admin');
+      }
+    } catch (error) {
+      console.error('Error loading mind map:', error);
       navigate('/admin');
     }
   };

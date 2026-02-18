@@ -14,8 +14,19 @@ export const AdminDashboard: React.FC = () => {
   }, []);
 
   const loadMaps = async () => {
-    const mindMaps = await getMindMaps();
-    setMaps(mindMaps);
+    try {
+      const mindMaps = await getMindMaps();
+      // Ensure we always have an array
+      if (Array.isArray(mindMaps)) {
+        setMaps(mindMaps);
+      } else {
+        console.error('getMindMaps returned non-array:', mindMaps);
+        setMaps([]);
+      }
+    } catch (error) {
+      console.error('Error loading mind maps:', error);
+      setMaps([]);
+    }
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {

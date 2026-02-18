@@ -70,9 +70,13 @@ export const getMindMapById = async (id: string): Promise<MindMap | undefined> =
 
 export const saveMindMap = async (map: MindMap): Promise<void> => {
   try {
-    // If authenticated, save to backend
+    if (!map || typeof map !== 'object') {
+      console.error('Invalid mind map object:', map);
+      return;
+    }
+
     if (isAuthenticated()) {
-      const url = map.id.length === 36 ? `/api/mindmaps/${map.id}` : '/api/mindmaps'; // UUID is 36 chars
+      const url = map.id.length === 36 ? `/api/mindmaps/${map.id}` : '/api/mindmaps';
       const method = map.id.length === 36 ? 'PUT' : 'POST';
 
       const response = await fetchWithAuth(url, {
@@ -86,7 +90,7 @@ export const saveMindMap = async (map: MindMap): Promise<void> => {
       });
 
       if (response.ok) {
-        return; // Successfully saved to backend
+        return;
       }
     }
   } catch (error) {
@@ -94,25 +98,39 @@ export const saveMindMap = async (map: MindMap): Promise<void> => {
   }
 
   // Fallback to localStorage
-  const maps = getInitialData();
-  const existingIndex = maps.findIndex(m => m.id === map.id);
+  try {
+    const maps = getInitialData();
+    if (!Array.isArray(maps)) {
+      console.error('localStorage data is not an array, resetting');
+      localStorage.removeItem(STORAGE_KEY);
+      return saveMindMap(map);
+    }
 
-  if (existingIndex >= 0) {
-    maps[existingIndex] = { ...map, updatedAt: Date.now() };
-  } else {
-    maps.push({ ...map, createdAt: Date.now(), updatedAt: Date.now() });
+    const existingIndex = maps.findIndex(m => m.id === map.id);
+
+    if (existingIndex >= 0) {
+      maps[existingIndex] = { ...map, updatedAt: Date.now() };
+    } else {
+      maps.push({ ...map, createdAt: Date.now(), updatedAt: Date.now() });
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(maps));
+  } catch (error) {
+    console.error('Error saving to localStorage:', error);
   }
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(maps));
 };
 
 export const deleteMindMap = async (id: string): Promise<void> => {
+  if (!id) {
+    console.error('Invalid mind map ID:', id);
+    return;
+  }
+
   try {
-    // If authenticated, delete from backend
     if (isAuthenticated()) {
       const response = await fetchWithAuth(`/api/mindmaps/${id}`, { method: 'DELETE' });
       if (response.ok) {
-        return; // Successfully deleted from backend
+        return;
       }
     }
   } catch (error) {
@@ -120,8 +138,16 @@ export const deleteMindMap = async (id: string): Promise<void> => {
   }
 
   // Fallback to localStorage
-  const maps = getInitialData();
-  const newMaps = maps.filter(m => m.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(newMaps));
+  try {
+    const maps = getInitialData();
+    if (!Array.isArray(maps)) {
+      console.error('localStorage data is not an array');
+      return;
+    }
+    const newMaps = maps.filter(m => m.id !== id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newMaps));
+  } catch (error) {
+    console.error('Error deleting from localStorage:', error);
+  }
 };
 
