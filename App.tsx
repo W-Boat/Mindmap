@@ -15,6 +15,7 @@ import { AdminUsers } from './pages/AdminUsers';
 import { AdminApplications } from './pages/AdminApplications';
 import { Editor } from './pages/Editor';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { MindmapDetail } from './pages/MindmapDetail';
 
 const App: React.FC = () => {
   return (
@@ -25,6 +26,7 @@ const App: React.FC = () => {
             <Routes>
               {/* Public routes */}
               <Route path="/" element={<Home />} />
+              <Route path="/mindmaps/:id" element={<MindmapDetail />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<RegisterRequest />} />
 

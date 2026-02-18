@@ -27,9 +27,10 @@ export default async (req: VercelRequest, res: VercelResponse) => {
   }
 
   const { id } = req.query;
+  const appId = Array.isArray(id) ? id[0] : id;
 
   // GET /api/admin/applications or /api/admin/applications/list - List pending applications
-  if (req.method === 'GET' && (!id || id === 'list')) {
+  if (req.method === 'GET' && (!appId || appId === 'list')) {
     try {
       const result = await sql`
         SELECT id, email, username, reason, status, created_at, updated_at
@@ -53,7 +54,7 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       console.error('Error fetching applications:', error);
       res.status(500).json({ error: 'Failed to fetch applications' });
     }
-  } else if (req.method === 'PUT' && id && id !== 'list') {
+  } else if (req.method === 'PUT' && appId && appId !== 'list') {
     // PUT /api/admin/applications/:id - Approve/reject application
     const { action } = req.body; // 'approve' or 'reject'
 
@@ -65,7 +66,7 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     try {
       // Get application
       const appResult = await sql`
-        SELECT id, email, username, password_hash FROM user_applications WHERE id = ${id}
+        SELECT id, email, username, password_hash FROM user_applications WHERE id = ${appId}
       `;
 
       if (appResult.rows.length === 0) {
@@ -84,7 +85,7 @@ export default async (req: VercelRequest, res: VercelResponse) => {
 
         // Update application status
         await sql`
-          UPDATE user_applications SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ${id}
+          UPDATE user_applications SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ${appId}
         `;
 
         res.status(200).json({
@@ -93,7 +94,7 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       } else if (action === 'reject') {
         // Update application status
         await sql`
-          UPDATE user_applications SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ${id}
+          UPDATE user_applications SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ${appId}
         `;
 
         res.status(200).json({

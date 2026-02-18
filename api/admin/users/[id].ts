@@ -27,9 +27,10 @@ export default async (req: VercelRequest, res: VercelResponse) => {
   }
 
   const { id } = req.query;
+  const userId = Array.isArray(id) ? id[0] : id;
 
   // GET /api/admin/users or /api/admin/users/list - List all users
-  if (req.method === 'GET' && (!id || id === 'list')) {
+  if (req.method === 'GET' && (!userId || userId === 'list')) {
     try {
       const result = await sql`
         SELECT id, email, username, role, status, language, created_at, updated_at
@@ -53,7 +54,7 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       console.error('Error fetching users:', error);
       res.status(500).json({ error: 'Failed to fetch users' });
     }
-  } else if (req.method === 'PUT' && id && id !== 'list') {
+  } else if (req.method === 'PUT' && userId && userId !== 'list') {
     // PUT /api/admin/users/:id - Update user role or status
     const { role, status } = req.body;
 
@@ -75,7 +76,7 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     try {
       let query = 'UPDATE users SET ';
       const updates = [];
-      const values = [];
+      const values: any[] = [];
 
       if (role) {
         updates.push(`role = $${updates.length + 1}`);
@@ -90,9 +91,9 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       updates.push(`updated_at = CURRENT_TIMESTAMP`);
 
       query += updates.join(', ') + ` WHERE id = $${values.length + 1} RETURNING id, email, username, role, status`;
-      values.push(id);
+      values.push(userId);
 
-      const result = await sql(query, values);
+      const result = await sql(query as any, values);
 
       if (result.rows.length === 0) {
         res.status(404).json({ error: 'User not found' });
@@ -115,10 +116,10 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       console.error('Error updating user:', error);
       res.status(500).json({ error: 'Failed to update user' });
     }
-  } else if (req.method === 'DELETE' && id && id !== 'list') {
+  } else if (req.method === 'DELETE' && userId && userId !== 'list') {
     // DELETE /api/admin/users/:id - Delete user
     try {
-      const result = await sql`DELETE FROM users WHERE id = ${id} RETURNING id`;
+      const result = await sql`DELETE FROM users WHERE id = ${userId} RETURNING id`;
 
       if (result.rows.length === 0) {
         res.status(404).json({ error: 'User not found' });
