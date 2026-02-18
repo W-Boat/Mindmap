@@ -42,11 +42,11 @@ export const Editor: React.FC = () => {
         setDescription(map.description || '');
         setContent(map.content);
       } else {
-        navigate('/admin');
+        navigate('/');
       }
     } catch (error) {
       console.error('Error loading mind map:', error);
-      navigate('/admin');
+      navigate('/');
     }
   };
 
@@ -66,7 +66,7 @@ export const Editor: React.FC = () => {
     };
 
     await saveMindMap(newMap);
-    navigate('/admin');
+    navigate('/');
   };
 
   const handleGenerate = async () => {
@@ -97,7 +97,7 @@ export const Editor: React.FC = () => {
       {/* Toolbar */}
       <div className="bg-white border-b border-slate-200 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm z-10">
         <div className="flex items-center gap-4 w-full md:w-auto">
-          <button onClick={() => navigate('/admin')} className="text-slate-400 hover:text-slate-700">
+          <button onClick={() => navigate('/')} className="text-slate-400 hover:text-slate-700">
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1 md:flex-none">

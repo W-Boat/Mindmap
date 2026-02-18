@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { fetchWithAuth } from '../services/authService';
 import { MindMap } from '../types';
 import { MarkmapViewer } from '../components/MarkmapViewer';
 import { t } from '../lib/i18n';
-import { ChevronLeft, Clock, Eye, EyeOff } from 'lucide-react';
+import { ChevronLeft, Clock } from 'lucide-react';
 
 export const MindmapDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,14 +24,12 @@ export const MindmapDetail: React.FC = () => {
     }
 
     try {
-      const response = await fetchWithAuth(`/api/mindmaps/${id}`);
+      const response = await fetch(`/api/mindmaps/${id}`);
       if (response.ok) {
         const data = await response.json();
         setMindMap(data.mindMap);
       } else if (response.status === 404) {
         setError(t('messages.notFound'));
-      } else if (response.status === 403) {
-        setError(t('messages.accessDenied'));
       } else {
         setError(t('messages.serverError'));
       }
@@ -95,19 +92,6 @@ export const MindmapDetail: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                {mindMap.isPublic ? (
-                  <>
-                    <Eye size={16} />
-                    <span>{t('mindmap.public')}</span>
-                  </>
-                ) : (
-                  <>
-                    <EyeOff size={16} />
-                    <span>{t('mindmap.private')}</span>
-                  </>
-                )}
-              </div>
               <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
                 <Clock size={16} />
                 <span>{new Date(mindMap.updatedAt).toLocaleDateString()}</span>

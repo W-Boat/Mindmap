@@ -1,98 +1,36 @@
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './lib/authContext';
 import { DarkModeProvider } from './lib/darkModeContext';
 import { Layout } from './components/Layout';
-import { ProtectedRoute } from './components/ProtectedRoute';
 
 // Pages
 import { Home } from './pages/Home';
-import { Login } from './pages/Login';
-import { RegisterRequest } from './pages/RegisterRequest';
-import { UserDashboard } from './pages/UserDashboard';
-import { AdminPanel } from './pages/AdminPanel';
-import { AdminUsers } from './pages/AdminUsers';
-import { AdminApplications } from './pages/AdminApplications';
-import { Editor } from './pages/Editor';
-import { AdminDashboard } from './pages/AdminDashboard';
 import { MindmapDetail } from './pages/MindmapDetail';
+import { Upload } from './pages/Upload';
+import { Editor } from './pages/Editor';
 
 const App: React.FC = () => {
   return (
     <DarkModeProvider>
-      <AuthProvider>
-        <HashRouter>
-          <Layout>
-            <Routes>
-              {/* Public routes */}
-              <Route path="/" element={<Home />} />
-              <Route path="/mindmaps/:id" element={<MindmapDetail />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<RegisterRequest />} />
+      <HashRouter>
+        <Layout>
+          <Routes>
+            {/* Public routes - anyone can access */}
+            <Route path="/" element={<Home />} />
+            <Route path="/mindmaps/:id" element={<MindmapDetail />} />
 
-              {/* User protected routes */}
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <UserDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard/new"
-                element={
-                  <ProtectedRoute>
-                    <Editor />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard/edit/:id"
-                element={
-                  <ProtectedRoute>
-                    <Editor />
-                  </ProtectedRoute>
-                }
-              />
+            {/* Hidden upload page - accessible via secret URL */}
+            <Route path="/upload/:secret" element={<Upload />} />
 
-              {/* Admin protected routes */}
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute adminOnly>
-                    <AdminPanel />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/users"
-                element={
-                  <ProtectedRoute adminOnly>
-                    <AdminUsers />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/applications"
-                element={
-                  <ProtectedRoute adminOnly>
-                    <AdminApplications />
-                  </ProtectedRoute>
-                }
-              />
+            {/* Public editor - anyone can create mindmaps */}
+            <Route path="/create" element={<Editor />} />
+            <Route path="/edit/:id" element={<Editor />} />
 
-              {/* Legacy routes (redirect to new paths) */}
-              <Route path="/admin-dashboard" element={<Navigate to="/admin" replace />} />
-              <Route path="/admin/new" element={<Navigate to="/dashboard/new" replace />} />
-              <Route path="/admin/edit/:id" element={<Navigate to="/dashboard/edit/:id" replace />} />
-
-              {/* Fallback */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Layout>
-        </HashRouter>
-      </AuthProvider>
+            {/* Fallback - redirect to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
+      </HashRouter>
     </DarkModeProvider>
   );
 };

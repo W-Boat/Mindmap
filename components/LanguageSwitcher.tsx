@@ -1,12 +1,21 @@
-import React from 'react';
-import { useAuth } from '../lib/authContext';
+import React, { useState, useEffect } from 'react';
+import { getCurrentLanguage, setLanguage, setupLanguageListener } from '../lib/i18n';
 import { Languages } from 'lucide-react';
 
 export const LanguageSwitcher: React.FC = () => {
-  const { language, setLanguage } = useAuth();
+  const [language, setCurrentLanguage] = useState(getCurrentLanguage());
+
+  useEffect(() => {
+    const cleanup = setupLanguageListener((newLang) => {
+      setCurrentLanguage(newLang);
+    });
+    return cleanup;
+  }, []);
 
   const handleToggle = () => {
-    setLanguage(language === 'zh' ? 'en' : 'zh');
+    const newLang = language === 'zh' ? 'en' : 'zh';
+    setLanguage(newLang);
+    setCurrentLanguage(newLang);
     // Reload page to apply translations
     window.location.reload();
   };
