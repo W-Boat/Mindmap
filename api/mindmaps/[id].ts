@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import { createClient } from '@vercel/postgres';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -26,6 +26,14 @@ function extractToken(authHeader: string | undefined): string | null {
   return parts.length === 2 && parts[0] === 'Bearer' ? parts[1] : null;
 }
 
+async function getDbClient() {
+  const connectionString = process.env.POSTGRES_URL_POOLED || process.env.POSTGRES_URL;
+  if (!connectionString) {
+    throw new Error('Database connection string not configured. Set POSTGRES_URL_POOLED in environment variables.');
+  }
+  return createClient({ connectionString });
+}
+
 export default async (req: VercelRequest, res: VercelResponse) => {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -49,14 +57,17 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     return;
   }
 
+  let client;
   try {
+    client = await getDbClient();
+    await client.connect();
+
     if (req.method === 'GET') {
       // Get single mind map
-      const result = await sql`
-        SELECT id, title, description, content, is_public, user_id, created_at, updated_at
-        FROM mind_maps
-        WHERE id = ${id}
-      `;
+      const result = await client.query(
+        'SELECT id, title, description, content, is_public, user_id, created_at, updated_at FROM mind_maps WHERE id = $1',
+        [id]
+      );
 
       if (result.rows.length === 0) {
         res.status(404).json({ error: 'Mind map not found' });
@@ -100,16 +111,10 @@ export default async (req: VercelRequest, res: VercelResponse) => {
 
       const publicFlag = isPublic !== undefined ? isPublic : true;
 
-      const result = await sql`
-        UPDATE mind_maps
-        SET title = ${title},
-            description = ${description || null},
-            content = ${content},
-            is_public = ${publicFlag},
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${id} AND user_id = ${userId}
-        RETURNING id, title, description, content, is_public, user_id, created_at, updated_at
-      `;
+      const result = await client.query(
+        'UPDATE mind_maps SET title = $1, description = $2, content = $3, is_public = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 AND user_id = $6 RETURNING id, title, description, content, is_public, user_id, created_at, updated_at',
+        [title, description || null, content, publicFlag, id, userId]
+      );
 
       if (result.rows.length === 0) {
         res.status(404).json({ error: 'Mind map not found' });
@@ -137,11 +142,10 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       }
 
       // Delete mind map
-      const result = await sql`
-        DELETE FROM mind_maps
-        WHERE id = ${id} AND user_id = ${userId}
-        RETURNING id
-      `;
+      const result = await client.query(
+        'DELETE FROM mind_maps WHERE id = $1 AND user_id = $2 RETURNING id',
+        [id, userId]
+      );
 
       if (result.rows.length === 0) {
         res.status(404).json({ error: 'Mind map not found' });
@@ -154,6 +158,11 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     }
   } catch (error) {
     console.error('Mind map operation error:', error);
-    res.status(500).json({ error: 'Failed to process mind map' });
+    res.status(500).json({
+      error: 'Failed to process mind map',
+      debug: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+    });
+  } finally {
+    if (client) await client.end();
   }
 };

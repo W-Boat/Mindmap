@@ -1,6 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import { createClient } from '@vercel/postgres';
 import jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -26,6 +27,14 @@ function extractToken(authHeader: string | undefined): string | null {
   return parts.length === 2 && parts[0] === 'Bearer' ? parts[1] : null;
 }
 
+async function getDbClient() {
+  const connectionString = process.env.POSTGRES_URL_POOLED || process.env.POSTGRES_URL;
+  if (!connectionString) {
+    throw new Error('Database connection string not configured. Set POSTGRES_URL_POOLED in environment variables.');
+  }
+  return createClient({ connectionString });
+}
+
 export default async (req: VercelRequest, res: VercelResponse) => {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -42,25 +51,24 @@ export default async (req: VercelRequest, res: VercelResponse) => {
   const payload = token ? verifyToken(token) : null;
   const userId = payload?.userId || null;
 
+  let client;
   try {
+    client = await getDbClient();
+    await client.connect();
+
     if (req.method === 'GET') {
       let result;
       if (userId) {
         // Authenticated: return public maps + user's own private maps
-        result = await sql`
-          SELECT id, title, description, is_public, user_id, created_at, updated_at
-          FROM mind_maps
-          WHERE is_public = true OR user_id = ${userId}
-          ORDER BY updated_at DESC
-        `;
+        result = await client.query(
+          'SELECT id, title, description, is_public, user_id, created_at, updated_at FROM mind_maps WHERE is_public = true OR user_id = $1 ORDER BY updated_at DESC',
+          [userId]
+        );
       } else {
         // Unauthenticated: return only public maps
-        result = await sql`
-          SELECT id, title, description, is_public, user_id, created_at, updated_at
-          FROM mind_maps
-          WHERE is_public = true
-          ORDER BY updated_at DESC
-        `;
+        result = await client.query(
+          'SELECT id, title, description, is_public, user_id, created_at, updated_at FROM mind_maps WHERE is_public = true ORDER BY updated_at DESC'
+        );
       }
 
       res.status(200).json({
@@ -90,12 +98,12 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       }
 
       const publicFlag = isPublic !== undefined ? isPublic : true;
+      const id = uuidv4();
 
-      const result = await sql`
-        INSERT INTO mind_maps (user_id, title, description, content, is_public)
-        VALUES (${userId}, ${title}, ${description || null}, ${content}, ${publicFlag})
-        RETURNING id, title, description, is_public, user_id, created_at, updated_at
-      `;
+      const result = await client.query(
+        'INSERT INTO mind_maps (id, user_id, title, description, content, is_public) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, title, description, is_public, user_id, created_at, updated_at',
+        [id, userId, title, description || null, content, publicFlag]
+      );
 
       const mindMap = result.rows[0];
 
@@ -116,6 +124,11 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     }
   } catch (error) {
     console.error('Mind maps error:', error);
-    res.status(500).json({ error: 'Failed to process mind maps' });
+    res.status(500).json({
+      error: 'Failed to process mind maps',
+      debug: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+    });
+  } finally {
+    if (client) await client.end();
   }
 };

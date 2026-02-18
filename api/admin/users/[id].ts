@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import { createClient } from '@vercel/postgres';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -24,6 +24,14 @@ function extractToken(authHeader: string | undefined): string | null {
   if (!authHeader) return null;
   const parts = authHeader.split(' ');
   return parts.length === 2 && parts[0] === 'Bearer' ? parts[1] : null;
+}
+
+async function getDbClient() {
+  const connectionString = process.env.POSTGRES_URL_POOLED || process.env.POSTGRES_URL;
+  if (!connectionString) {
+    throw new Error('Database connection string not configured. Set POSTGRES_URL_POOLED in environment variables.');
+  }
+  return createClient({ connectionString });
 }
 
 export default async (req: VercelRequest, res: VercelResponse) => {
@@ -53,14 +61,17 @@ export default async (req: VercelRequest, res: VercelResponse) => {
   const { id } = req.query;
   const userId = Array.isArray(id) ? id[0] : id;
 
+  let client;
+
   // GET /api/admin/users or /api/admin/users/list - List all users
   if (req.method === 'GET' && (!userId || userId === 'list')) {
     try {
-      const result = await sql`
-        SELECT id, email, username, role, status, language, created_at, updated_at
-        FROM users
-        ORDER BY created_at DESC
-      `;
+      client = await getDbClient();
+      await client.connect();
+
+      const result = await client.query(
+        'SELECT id, email, username, role, status, language, created_at, updated_at FROM users ORDER BY created_at DESC'
+      );
 
       res.status(200).json({
         users: result.rows.map(user => ({
@@ -76,7 +87,12 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       });
     } catch (error) {
       console.error('Error fetching users:', error);
-      res.status(500).json({ error: 'Failed to fetch users' });
+      res.status(500).json({
+        error: 'Failed to fetch users',
+        debug: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+      });
+    } finally {
+      if (client) await client.end();
     }
   } else if (req.method === 'PUT' && userId && userId !== 'list') {
     // PUT /api/admin/users/:id - Update user role or status
@@ -98,26 +114,29 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     }
 
     try {
+      client = await getDbClient();
+      await client.connect();
+
       let query = 'UPDATE users SET ';
       const updates: string[] = [];
-      const values: (string | number)[] = [];
+      const values: (string | undefined)[] = [];
 
       if (role) {
-        updates.push(`role = $${values.length + 1}`);
+        updates.push(`role = $${updates.length + 1}`);
         values.push(role);
       }
 
       if (status) {
-        updates.push(`status = $${values.length + 1}`);
+        updates.push(`status = $${updates.length + 1}`);
         values.push(status);
       }
 
-      updates.push(`updated_at = CURRENT_TIMESTAMP`);
+      updates.push('updated_at = CURRENT_TIMESTAMP');
 
-      query += updates.join(', ') + ` WHERE id = $${values.length + 1} RETURNING id, email, username, role, status`;
-      values.push(userId as string);
+      query += updates.join(', ') + ` WHERE id = $${updates.length + 1} RETURNING id, email, username, role, status`;
+      values.push(userId);
 
-      const result = await (sql as any)(query, values);
+      const result = await client.query(query, values);
 
       if (result.rows.length === 0) {
         res.status(404).json({ error: 'User not found' });
@@ -138,12 +157,23 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       });
     } catch (error) {
       console.error('Error updating user:', error);
-      res.status(500).json({ error: 'Failed to update user' });
+      res.status(500).json({
+        error: 'Failed to update user',
+        debug: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+      });
+    } finally {
+      if (client) await client.end();
     }
   } else if (req.method === 'DELETE' && userId && userId !== 'list') {
     // DELETE /api/admin/users/:id - Delete user
     try {
-      const result = await sql`DELETE FROM users WHERE id = ${userId} RETURNING id`;
+      client = await getDbClient();
+      await client.connect();
+
+      const result = await client.query(
+        'DELETE FROM users WHERE id = $1 RETURNING id',
+        [userId]
+      );
 
       if (result.rows.length === 0) {
         res.status(404).json({ error: 'User not found' });
@@ -155,7 +185,12 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       });
     } catch (error) {
       console.error('Error deleting user:', error);
-      res.status(500).json({ error: 'Failed to delete user' });
+      res.status(500).json({
+        error: 'Failed to delete user',
+        debug: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+      });
+    } finally {
+      if (client) await client.end();
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

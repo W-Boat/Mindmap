@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import { createClient } from '@vercel/postgres';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
@@ -19,6 +19,14 @@ function generateToken(payload: JWTPayload): string {
 
 async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
+}
+
+async function getDbClient() {
+  const connectionString = process.env.POSTGRES_URL_POOLED || process.env.POSTGRES_URL;
+  if (!connectionString) {
+    throw new Error('Database connection string not configured. Set POSTGRES_URL_POOLED in environment variables.');
+  }
+  return createClient({ connectionString });
 }
 
 export default async (req: VercelRequest, res: VercelResponse) => {
@@ -54,21 +62,16 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     return;
   }
 
+  let client;
   try {
-    // Check if database is connected
-    if (!process.env.POSTGRES_URL && !process.env.VERCEL_POSTGRES_URL && !process.env.VERCEL_POSTGRES_DATABASE_URL) {
-      console.error('Database connection error: No POSTGRES_URL environment variable set');
-      res.status(500).json({
-        error: 'Database connection failed. Check POSTGRES_URL environment variable.',
-        debug: process.env.NODE_ENV === 'development' ? 'POSTGRES_URL not configured' : undefined
-      });
-      return;
-    }
+    client = await getDbClient();
+    await client.connect();
 
     // Find user
-    const result = await sql`
-      SELECT id, email, username, password_hash, role, status, language FROM users WHERE email = ${email}
-    `;
+    const result = await client.query(
+      'SELECT id, email, username, password_hash, role, status, language FROM users WHERE email = $1',
+      [email]
+    );
 
     if (result.rows.length === 0) {
       res.status(401).json({ error: 'Invalid email or password' });
@@ -122,5 +125,7 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       error: 'Login failed',
       debug: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     });
+  } finally {
+    if (client) await client.end();
   }
 };

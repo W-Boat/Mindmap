@@ -1,10 +1,18 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import { createClient } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
 
 async function hashPassword(password: string): Promise<string> {
   const salt = await bcrypt.genSalt(10);
   return bcrypt.hash(password, salt);
+}
+
+async function getDbClient() {
+  const connectionString = process.env.POSTGRES_URL_POOLED || process.env.POSTGRES_URL;
+  if (!connectionString) {
+    throw new Error('Database connection string not configured. Set POSTGRES_URL_POOLED in environment variables.');
+  }
+  return createClient({ connectionString });
 }
 
 export default async (req: VercelRequest, res: VercelResponse) => {
@@ -46,11 +54,15 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     return;
   }
 
+  let client;
   try {
+    client = await getDbClient();
+    await client.connect();
+
     // Check if email or username is already taken in either users or applications table
     const [existingUser, existingApp] = await Promise.all([
-      sql`SELECT id FROM users WHERE email = ${email} OR username = ${username}`,
-      sql`SELECT id FROM user_applications WHERE email = ${email} OR username = ${username}`,
+      client.query('SELECT id FROM users WHERE email = $1 OR username = $2', [email, username]),
+      client.query('SELECT id FROM user_applications WHERE email = $1 OR username = $2', [email, username]),
     ]);
 
     if (existingUser.rows.length > 0) {
@@ -67,11 +79,10 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     const passwordHash = await hashPassword(password);
 
     // Create application
-    const result = await sql`
-      INSERT INTO user_applications (email, username, password_hash, reason)
-      VALUES (${email}, ${username}, ${passwordHash}, ${reason || null})
-      RETURNING id, email, username, status, created_at
-    `;
+    const result = await client.query(
+      'INSERT INTO user_applications (email, username, password_hash, reason) VALUES ($1, $2, $3, $4) RETURNING id, email, username, status, created_at',
+      [email, username, passwordHash, reason || null]
+    );
 
     const application = result.rows[0];
 
@@ -95,5 +106,7 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       error: 'Failed to submit registration application',
       debug: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     });
+  } finally {
+    if (client) await client.end();
   }
 };

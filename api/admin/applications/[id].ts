@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import { createClient } from '@vercel/postgres';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
@@ -31,6 +31,14 @@ function generateToken(payload: JWTPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
 
+async function getDbClient() {
+  const connectionString = process.env.POSTGRES_URL_POOLED || process.env.POSTGRES_URL;
+  if (!connectionString) {
+    throw new Error('Database connection string not configured. Set POSTGRES_URL_POOLED in environment variables.');
+  }
+  return createClient({ connectionString });
+}
+
 export default async (req: VercelRequest, res: VercelResponse) => {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -58,15 +66,18 @@ export default async (req: VercelRequest, res: VercelResponse) => {
   const { id } = req.query;
   const appId = Array.isArray(id) ? id[0] : id;
 
+  let client;
+
   // GET /api/admin/applications or /api/admin/applications/list - List pending applications
   if (req.method === 'GET' && (!appId || appId === 'list')) {
     try {
-      const result = await sql`
-        SELECT id, email, username, reason, status, created_at, updated_at
-        FROM user_applications
-        WHERE status = 'pending'
-        ORDER BY created_at DESC
-      `;
+      client = await getDbClient();
+      await client.connect();
+
+      const result = await client.query(
+        'SELECT id, email, username, reason, status, created_at, updated_at FROM user_applications WHERE status = $1 ORDER BY created_at DESC',
+        ['pending']
+      );
 
       res.status(200).json({
         applications: result.rows.map(app => ({
@@ -81,7 +92,12 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       });
     } catch (error) {
       console.error('Error fetching applications:', error);
-      res.status(500).json({ error: 'Failed to fetch applications' });
+      res.status(500).json({
+        error: 'Failed to fetch applications',
+        debug: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+      });
+    } finally {
+      if (client) await client.end();
     }
   } else if (req.method === 'PUT' && appId && appId !== 'list') {
     // PUT /api/admin/applications/:id - Approve/reject application
@@ -93,10 +109,14 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     }
 
     try {
+      client = await getDbClient();
+      await client.connect();
+
       // Get application
-      const appResult = await sql`
-        SELECT id, email, username, password_hash FROM user_applications WHERE id = ${appId}
-      `;
+      const appResult = await client.query(
+        'SELECT id, email, username, password_hash FROM user_applications WHERE id = $1',
+        [appId]
+      );
 
       if (appResult.rows.length === 0) {
         res.status(404).json({ error: 'Application not found' });
@@ -107,24 +127,26 @@ export default async (req: VercelRequest, res: VercelResponse) => {
 
       if (action === 'approve') {
         // Create user account
-        await sql`
-          INSERT INTO users (email, username, password_hash, role, status, language)
-          VALUES (${app.email}, ${app.username}, ${app.password_hash}, 'user', 'approved', 'zh')
-        `;
+        await client.query(
+          'INSERT INTO users (email, username, password_hash, role, status, language) VALUES ($1, $2, $3, $4, $5, $6)',
+          [app.email, app.username, app.password_hash, 'user', 'approved', 'zh']
+        );
 
         // Update application status
-        await sql`
-          UPDATE user_applications SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ${appId}
-        `;
+        await client.query(
+          'UPDATE user_applications SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          ['approved', appId]
+        );
 
         res.status(200).json({
           message: 'Application approved and user account created',
         });
       } else if (action === 'reject') {
         // Update application status
-        await sql`
-          UPDATE user_applications SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ${appId}
-        `;
+        await client.query(
+          'UPDATE user_applications SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          ['rejected', appId]
+        );
 
         res.status(200).json({
           message: 'Application rejected',
@@ -132,7 +154,12 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       }
     } catch (error) {
       console.error('Error processing application:', error);
-      res.status(500).json({ error: 'Failed to process application' });
+      res.status(500).json({
+        error: 'Failed to process application',
+        debug: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+      });
+    } finally {
+      if (client) await client.end();
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

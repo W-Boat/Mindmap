@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import { createClient } from '@vercel/postgres';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
@@ -20,6 +20,14 @@ async function hashPassword(password: string): Promise<string> {
 
 function generateToken(payload: JWTPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+}
+
+async function getDbClient() {
+  const connectionString = process.env.POSTGRES_URL_POOLED || process.env.POSTGRES_URL;
+  if (!connectionString) {
+    throw new Error('Database connection string not configured. Set POSTGRES_URL_POOLED in environment variables.');
+  }
+  return createClient({ connectionString });
 }
 
 export default async (req: VercelRequest, res: VercelResponse) => {
@@ -51,11 +59,16 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     return;
   }
 
+  let client;
   try {
+    client = await getDbClient();
+    await client.connect();
+
     // Check if user already exists
-    const existingUser = await sql`
-      SELECT id FROM users WHERE email = ${email} OR username = ${username}
-    `;
+    const existingUser = await client.query(
+      'SELECT id FROM users WHERE email = $1 OR username = $2',
+      [email, username]
+    );
 
     if (existingUser.rows.length > 0) {
       res.status(409).json({ error: 'Email or username already exists' });
@@ -66,17 +79,16 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     const passwordHash = await hashPassword(password);
 
     // Determine role - first user is admin, others are regular users
-    const userCount = await sql`SELECT COUNT(*) as count FROM users`;
-    const isFirstUser = userCount.rows[0].count === 0;
+    const userCount = await client.query('SELECT COUNT(*) as count FROM users');
+    const isFirstUser = parseInt(userCount.rows[0].count) === 0;
     const role = isFirstUser ? 'admin' : 'user';
     const lang = language === 'en' ? 'en' : 'zh';
 
     // Create user
-    const result = await sql`
-      INSERT INTO users (email, username, password_hash, role, language)
-      VALUES (${email}, ${username}, ${passwordHash}, ${role}, ${lang})
-      RETURNING id, email, username, role, language
-    `;
+    const result = await client.query(
+      'INSERT INTO users (email, username, password_hash, role, language) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, username, role, language',
+      [email, username, passwordHash, role, lang]
+    );
 
     const user = result.rows[0];
 
@@ -110,5 +122,7 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       error: 'Failed to create user',
       debug: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     });
+  } finally {
+    if (client) await client.end();
   }
 };
