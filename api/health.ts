@@ -49,7 +49,10 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     const client = createClient({ connectionString });
 
     try {
+      console.log('Attempting to connect to database...');
       await client.connect();
+      console.log('Connected! Testing query...');
+
       const result = await client.query('SELECT NOW()');
       await client.end();
 
@@ -66,7 +69,8 @@ export default async (req: VercelRequest, res: VercelResponse) => {
         );
         await checkClient.end();
         tablesExist = tablesResult.rows.length >= 3;
-      } catch {
+      } catch (tableCheckError) {
+        console.error('Error checking tables:', tableCheckError);
         // Tables might not exist yet
       }
 
@@ -80,28 +84,40 @@ export default async (req: VercelRequest, res: VercelResponse) => {
         environment: envCheck,
         next_steps: !tablesExist ? [
           'Database connected but tables not initialized',
-          'Run: npm run init-db (locally with POSTGRES_URL_POOLED set)',
-          'Or see VERCEL_SETUP.md for deployment instructions'
+          'Run: export POSTGRES_URL_POOLED="..." && npm run init-db',
+          'Then redeploy'
         ] : [],
       });
     } catch (dbError) {
       throw dbError;
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
+    // Extract error information in different formats
+    let errorMsg = 'Unknown error';
+    let errorCode = 'UNKNOWN';
 
-    console.error('Health check error:', {
-      message: errorMessage,
-      stack: errorStack,
-      type: error instanceof Error ? error.constructor.name : typeof error,
+    if (error instanceof Error) {
+      errorMsg = error.message;
+      errorCode = (error as any).code || 'ERROR';
+    } else if (typeof error === 'object' && error !== null) {
+      errorMsg = JSON.stringify(error);
+      errorCode = (error as any).code || 'OBJECT_ERROR';
+    } else {
+      errorMsg = String(error);
+    }
+
+    console.error('Database connection error:', {
+      message: errorMsg,
+      code: errorCode,
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
+      fullError: error,
     });
 
     res.status(503).json({
       status: 'error',
       timestamp: new Date().toISOString(),
-      error: errorMessage,
-      errorType: error instanceof Error ? error.constructor.name : typeof error,
+      error: errorMsg,
+      errorCode: errorCode,
       environment: {
         POSTGRES_URL: !!process.env.POSTGRES_URL,
         POSTGRES_URL_POOLED: !!process.env.POSTGRES_URL_POOLED,
@@ -109,17 +125,24 @@ export default async (req: VercelRequest, res: VercelResponse) => {
         NODE_ENV: process.env.NODE_ENV || 'development',
       },
       troubleshooting: [
-        'Database connection failed. Common causes:',
-        '1. Database server is down or unreachable',
-        '2. Connection credentials in POSTGRES_URL_POOLED are incorrect',
-        '3. Firewall or network issue preventing connection',
-        '4. Database has not been initialized yet',
+        'Database connection failed.',
         '',
-        'Solutions:',
-        '- Check database status in Vercel Dashboard → Storage → Postgres',
-        '- Verify POSTGRES_URL_POOLED connection string is correct',
-        '- Initialize database: export POSTGRES_URL_POOLED=... && npm run init-db',
-        '- Check Vercel deployment logs for more details'
+        'If error is "too many connections":',
+        '- Database pool is exhausted',
+        '- Restart your Vercel Postgres database in Dashboard → Storage',
+        '',
+        'If error contains "ECONNREFUSED":',
+        '- Database server is not running',
+        '- Check Vercel Dashboard → Storage → Postgres status',
+        '',
+        'If error contains "password authentication failed":',
+        '- Check POSTGRES_URL_POOLED credentials are correct',
+        '- Regenerate connection string in Vercel Dashboard',
+        '',
+        'If tables are missing:',
+        '- Run: export POSTGRES_URL_POOLED="..." && npm run init-db',
+        '',
+        'Check Vercel deployment logs for more details',
       ],
     });
   }
