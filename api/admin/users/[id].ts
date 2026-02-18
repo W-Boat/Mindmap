@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
-import { verifyToken, extractToken } from '../../lib/auth';
+import { verifyToken, extractToken } from '../../../lib/auth';
 
 export default async (req: VercelRequest, res: VercelResponse) => {
   // CORS headers
@@ -75,25 +75,25 @@ export default async (req: VercelRequest, res: VercelResponse) => {
 
     try {
       let query = 'UPDATE users SET ';
-      const updates = [];
-      const values: any[] = [];
+      const updates: string[] = [];
+      const values: (string | number)[] = [];
 
       if (role) {
-        updates.push(`role = $${updates.length + 1}`);
+        updates.push(`role = $${values.length + 1}`);
         values.push(role);
       }
 
       if (status) {
-        updates.push(`status = $${updates.length + 1}`);
+        updates.push(`status = $${values.length + 1}`);
         values.push(status);
       }
 
       updates.push(`updated_at = CURRENT_TIMESTAMP`);
 
       query += updates.join(', ') + ` WHERE id = $${values.length + 1} RETURNING id, email, username, role, status`;
-      values.push(userId);
+      values.push(userId as string);
 
-      const result = await sql(query as any, values);
+      const result = await (sql as any)(query, values);
 
       if (result.rows.length === 0) {
         res.status(404).json({ error: 'User not found' });
