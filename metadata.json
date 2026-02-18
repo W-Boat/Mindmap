@@ -1,0 +1,5 @@
+{
+  "name": "MindMap GenAI Platform",
+  "description": "A comprehensive mind map management platform featuring an interactive public gallery and a powerful admin dashboard. Includes AI-powered mind map generation using Google Gemini.",
+  "requestFramePermissions": []
+}

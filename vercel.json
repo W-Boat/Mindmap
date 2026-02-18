@@ -1,0 +1,27 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "vite",
+  "installCommand": "npm install",
+  "framework": "vite",
+  "outputDirectory": "dist",
+  "env": [
+    "DEEPSEEK_API_KEY"
+  ],
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "redirects": [
+    {
+      "source": "/admin/:path*",
+      "destination": "/index.html",
+      "permanent": false
+    },
+    {
+      "source": "/editor/:path*",
+      "destination": "/index.html",
+      "permanent": false
+    }
+  ]
+}

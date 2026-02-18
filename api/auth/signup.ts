@@ -1,0 +1,77 @@
+import { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
+import { hashPassword, generateToken } from '../../lib/auth';
+
+export default async (req: VercelRequest, res: VercelResponse) => {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  const { email, username, password } = req.body;
+
+  // Validation
+  if (!email || !username || !password) {
+    res.status(400).json({ error: 'Email, username, and password are required' });
+    return;
+  }
+
+  if (password.length < 6) {
+    res.status(400).json({ error: 'Password must be at least 6 characters' });
+    return;
+  }
+
+  try {
+    // Check if user already exists
+    const existingUser = await sql`
+      SELECT id FROM users WHERE email = ${email} OR username = ${username}
+    `;
+
+    if (existingUser.rows.length > 0) {
+      res.status(409).json({ error: 'Email or username already exists' });
+      return;
+    }
+
+    // Hash password
+    const passwordHash = await hashPassword(password);
+
+    // Create user
+    const result = await sql`
+      INSERT INTO users (email, username, password_hash)
+      VALUES (${email}, ${username}, ${passwordHash})
+      RETURNING id, email, username
+    `;
+
+    const user = result.rows[0];
+
+    // Generate token
+    const token = generateToken({
+      userId: user.id,
+      email: user.email,
+      username: user.username,
+    });
+
+    res.status(201).json({
+      message: 'User created successfully',
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+      },
+    });
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({ error: 'Failed to create user' });
+  }
+};
