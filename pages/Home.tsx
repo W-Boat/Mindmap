@@ -10,7 +10,21 @@ export const Home: React.FC = () => {
   const [selectedMap, setSelectedMap] = useState<MindMap | null>(null);
 
   useEffect(() => {
-    setMaps(getMindMaps());
+    const loadMaps = async () => {
+      try {
+        const data = await getMindMaps();
+        if (Array.isArray(data)) {
+          setMaps(data);
+        } else {
+          console.error('getMindMaps returned non-array:', data);
+          setMaps([]);
+        }
+      } catch (error) {
+        console.error('Error loading mind maps:', error);
+        setMaps([]);
+      }
+    };
+    loadMaps();
   }, []);
 
   return (
