@@ -20,8 +20,8 @@ export const AdminPanel: React.FC = () => {
   const loadStats = async () => {
     try {
       const [usersRes, appsRes] = await Promise.all([
-        fetchWithAuth('/api/admin/users/list'),
-        fetchWithAuth('/api/admin/applications/list'),
+        fetchWithAuth('/api/admin/users'),
+        fetchWithAuth('/api/admin/applications'),
       ]);
 
       if (usersRes.ok) {

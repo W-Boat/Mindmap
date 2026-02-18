@@ -26,8 +26,10 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     return;
   }
 
-  if (req.method === 'GET') {
-    // GET /api/admin/applications - List pending applications
+  const { id } = req.query;
+
+  // GET /api/admin/applications or /api/admin/applications/list - List pending applications
+  if (req.method === 'GET' && (!id || id === 'list')) {
     try {
       const result = await sql`
         SELECT id, email, username, reason, status, created_at, updated_at
@@ -51,15 +53,9 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       console.error('Error fetching applications:', error);
       res.status(500).json({ error: 'Failed to fetch applications' });
     }
-  } else if (req.method === 'PUT') {
+  } else if (req.method === 'PUT' && id && id !== 'list') {
     // PUT /api/admin/applications/:id - Approve/reject application
-    const { id } = req.query;
     const { action } = req.body; // 'approve' or 'reject'
-
-    if (!id || typeof id !== 'string') {
-      res.status(400).json({ error: 'Application ID is required' });
-      return;
-    }
 
     if (!action || (action !== 'approve' && action !== 'reject')) {
       res.status(400).json({ error: 'Action must be "approve" or "reject"' });

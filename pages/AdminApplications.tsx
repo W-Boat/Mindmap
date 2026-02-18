@@ -24,10 +24,12 @@ export const AdminApplications: React.FC = () => {
 
   const loadApplications = async () => {
     try {
-      const response = await fetchWithAuth('/api/admin/applications/list');
+      const response = await fetchWithAuth('/api/admin/applications');
       if (response.ok) {
         const data = await response.json();
         setApplications(data.applications || []);
+      } else {
+        console.error('Failed to load applications:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Error loading applications:', error);
@@ -52,6 +54,8 @@ export const AdminApplications: React.FC = () => {
 
       if (response.ok) {
         loadApplications();
+      } else {
+        console.error('Failed to process application:', response.status, response.statusText);
       }
     } catch (error) {
       console.error(`Error ${action}ing application:`, error);

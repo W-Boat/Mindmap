@@ -26,10 +26,12 @@ export const AdminUsers: React.FC = () => {
 
   const loadUsers = async () => {
     try {
-      const response = await fetchWithAuth('/api/admin/users/list');
+      const response = await fetchWithAuth('/api/admin/users');
       if (response.ok) {
         const data = await response.json();
         setUsers(data.users || []);
+      } else {
+        console.error('Failed to load users:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Error loading users:', error);

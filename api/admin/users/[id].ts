@@ -26,8 +26,10 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     return;
   }
 
-  if (req.method === 'GET') {
-    // GET /api/admin/users - List all users
+  const { id } = req.query;
+
+  // GET /api/admin/users or /api/admin/users/list - List all users
+  if (req.method === 'GET' && (!id || id === 'list')) {
     try {
       const result = await sql`
         SELECT id, email, username, role, status, language, created_at, updated_at
@@ -51,15 +53,9 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       console.error('Error fetching users:', error);
       res.status(500).json({ error: 'Failed to fetch users' });
     }
-  } else if (req.method === 'PUT') {
+  } else if (req.method === 'PUT' && id && id !== 'list') {
     // PUT /api/admin/users/:id - Update user role or status
-    const { id } = req.query;
     const { role, status } = req.body;
-
-    if (!id || typeof id !== 'string') {
-      res.status(400).json({ error: 'User ID is required' });
-      return;
-    }
 
     if (role && !['user', 'admin'].includes(role)) {
       res.status(400).json({ error: 'Invalid role' });
@@ -71,29 +67,29 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       return;
     }
 
+    if (!role && !status) {
+      res.status(400).json({ error: 'At least one field must be updated' });
+      return;
+    }
+
     try {
-      // Update user
+      let query = 'UPDATE users SET ';
       const updates = [];
       const values = [];
 
       if (role) {
-        updates.push(`role = $${values.length + 1}`);
+        updates.push(`role = $${updates.length + 1}`);
         values.push(role);
       }
 
       if (status) {
-        updates.push(`status = $${values.length + 1}`);
+        updates.push(`status = $${updates.length + 1}`);
         values.push(status);
       }
 
-      updates.push('updated_at = CURRENT_TIMESTAMP');
+      updates.push(`updated_at = CURRENT_TIMESTAMP`);
 
-      if (updates.length === 1) {
-        res.status(400).json({ error: 'At least one field must be updated' });
-        return;
-      }
-
-      const query = `UPDATE users SET ${updates.join(', ')} WHERE id = $${values.length + 1} RETURNING id, email, username, role, status`;
+      query += updates.join(', ') + ` WHERE id = $${values.length + 1} RETURNING id, email, username, role, status`;
       values.push(id);
 
       const result = await sql(query, values);
@@ -119,15 +115,8 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       console.error('Error updating user:', error);
       res.status(500).json({ error: 'Failed to update user' });
     }
-  } else if (req.method === 'DELETE') {
+  } else if (req.method === 'DELETE' && id && id !== 'list') {
     // DELETE /api/admin/users/:id - Delete user
-    const { id } = req.query;
-
-    if (!id || typeof id !== 'string') {
-      res.status(400).json({ error: 'User ID is required' });
-      return;
-    }
-
     try {
       const result = await sql`DELETE FROM users WHERE id = ${id} RETURNING id`;
 
