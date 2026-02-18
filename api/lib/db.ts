@@ -1,12 +1,11 @@
 import { createClient } from '@vercel/postgres';
 
-// For serverless functions, we need to use connection pooling
-// Use POSTGRES_URL_POOLED which Vercel automatically creates
+// For serverless functions, use the standard connection string
 const getClient = () => {
-  const connectionString = process.env.POSTGRES_URL_POOLED || process.env.POSTGRES_URL;
+  const connectionString = process.env.POSTGRES_URL;
 
   if (!connectionString) {
-    throw new Error('No database connection string found. Set POSTGRES_URL_POOLED or POSTGRES_URL environment variable.');
+    throw new Error('No database connection string found. Set POSTGRES_URL environment variable.');
   }
 
   return createClient({

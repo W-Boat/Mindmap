@@ -1,10 +1,10 @@
 import { createClient } from '@vercel/postgres';
 
 async function initDatabase() {
-  const connectionString = process.env.POSTGRES_URL_POOLED || process.env.POSTGRES_URL;
+  const connectionString = process.env.POSTGRES_URL;
 
   if (!connectionString) {
-    console.error('❌ Error: POSTGRES_URL or POSTGRES_URL_POOLED environment variable not set');
+    console.error('❌ Error: POSTGRES_URL environment variable not set');
     process.exit(1);
   }
 

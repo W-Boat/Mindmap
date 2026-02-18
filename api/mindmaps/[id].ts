@@ -2,7 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@vercel/postgres';
 
 async function getDbClient() {
-  const connectionString = process.env.POSTGRES_URL_POOLED || process.env.POSTGRES_URL;
+  const connectionString = process.env.POSTGRES_URL;
   if (!connectionString) {
     throw new Error('Database connection string not configured.');
   }

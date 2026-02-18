@@ -134,21 +134,21 @@ CREATE TABLE IF NOT EXISTS user_applications (
 
 ### Issue: "This connection string is meant to be used with a direct connection"
 
-**Fixed!** Updated all API endpoints to use Vercel Postgres pooled connections (`POSTGRES_URL_POOLED`).
+**Fixed!** All API endpoints now use Vercel Postgres standard connection (`POSTGRES_URL`).
 
 **What happened:**
-- Vercel serverless functions need pooled connections for stateless concurrent requests
-- Previous code used `@vercel/postgres` `sql` tag which expects direct connections
-- This was causing 500 errors on all database operations
+- Vercel serverless functions now use standard connections with proper pooling
+- Previous code used pooled connections which had compatibility issues
+- This was causing connection-related errors on database operations
 
 **Solution applied:**
-- All API endpoints now use `createClient` with `POSTGRES_URL_POOLED`
+- All API endpoints now use `createClient` with `POSTGRES_URL`
 - Explicit connection lifecycle management (connect/end)
 - Proper resource cleanup
 
 **What you need to do:**
 1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables
-2. Verify `POSTGRES_URL_POOLED` is set (auto-created with Postgres database)
+2. Verify `POSTGRES_URL` is set (auto-created with Postgres database)
 3. If not present, check if Postgres is linked to your project
 4. Redeploy the project
 

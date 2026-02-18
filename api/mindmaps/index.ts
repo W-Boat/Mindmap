@@ -3,7 +3,7 @@ import { createClient } from '@vercel/postgres';
 import { v4 as uuidv4 } from 'uuid';
 
 async function getDbClient() {
-  const connectionString = process.env.POSTGRES_URL_POOLED || process.env.POSTGRES_URL;
+  const connectionString = process.env.POSTGRES_URL;
   if (!connectionString) {
     throw new Error('Database connection string not configured.');
   }

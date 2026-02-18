@@ -21,13 +21,12 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     // Check environment variables
     const envCheck = {
       POSTGRES_URL: !!process.env.POSTGRES_URL,
-      POSTGRES_URL_POOLED: !!process.env.POSTGRES_URL_POOLED,
       JWT_SECRET: !!process.env.JWT_SECRET,
       NODE_ENV: process.env.NODE_ENV || 'development',
     };
 
-    // Use pooled connection for serverless
-    const connectionString = process.env.POSTGRES_URL_POOLED || process.env.POSTGRES_URL;
+    // Use regular connection
+    const connectionString = process.env.POSTGRES_URL;
 
     if (!connectionString) {
       res.status(503).json({
@@ -36,9 +35,9 @@ export default async (req: VercelRequest, res: VercelResponse) => {
         error: 'No database connection string configured',
         environment: envCheck,
         troubleshooting: [
-          'POSTGRES_URL_POOLED must be set in Vercel environment variables',
+          'POSTGRES_URL must be set in Vercel environment variables',
           'Go to Vercel Dashboard → Project Settings → Environment Variables',
-          'Verify POSTGRES_URL_POOLED is present (auto-created with Postgres)',
+          'Verify POSTGRES_URL is present (auto-created with Postgres)',
           'Redeploy the project after verifying'
         ],
       });
@@ -84,7 +83,7 @@ export default async (req: VercelRequest, res: VercelResponse) => {
         environment: envCheck,
         next_steps: !tablesExist ? [
           'Database connected but tables not initialized',
-          'Run: export POSTGRES_URL_POOLED="..." && npm run init-db',
+          'Run: export POSTGRES_URL="..." && npm run init-db',
           'Then redeploy'
         ] : [],
       });
@@ -120,7 +119,6 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       errorCode: errorCode,
       environment: {
         POSTGRES_URL: !!process.env.POSTGRES_URL,
-        POSTGRES_URL_POOLED: !!process.env.POSTGRES_URL_POOLED,
         JWT_SECRET: !!process.env.JWT_SECRET,
         NODE_ENV: process.env.NODE_ENV || 'development',
       },
@@ -136,11 +134,11 @@ export default async (req: VercelRequest, res: VercelResponse) => {
         '- Check Vercel Dashboard → Storage → Postgres status',
         '',
         'If error contains "password authentication failed":',
-        '- Check POSTGRES_URL_POOLED credentials are correct',
+        '- Check POSTGRES_URL credentials are correct',
         '- Regenerate connection string in Vercel Dashboard',
         '',
         'If tables are missing:',
-        '- Run: export POSTGRES_URL_POOLED="..." && npm run init-db',
+        '- Run: export POSTGRES_URL="..." && npm run init-db',
         '',
         'Check Vercel deployment logs for more details',
       ],
