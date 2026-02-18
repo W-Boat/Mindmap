@@ -8,7 +8,17 @@ const STORAGE_KEY = 'mindmaps';
 const getInitialData = (): MindMap[] => {
   const existing = localStorage.getItem(STORAGE_KEY);
   if (existing) {
-    return JSON.parse(existing);
+    try {
+      const parsed = JSON.parse(existing);
+      // Ensure it's an array
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (e) {
+      console.error('Error parsing localStorage data:', e);
+      // Clear bad data
+      localStorage.removeItem(STORAGE_KEY);
+    }
   }
   const initialData: MindMap[] = [
     {
@@ -26,25 +36,23 @@ const getInitialData = (): MindMap[] => {
 
 export const getMindMaps = async (): Promise<MindMap[]> => {
   try {
-    // If authenticated, fetch from backend
     if (isAuthenticated()) {
       const response = await fetchWithAuth('/api/mindmaps');
       if (response.ok) {
         const data = await response.json();
-        return data.mindMaps || [];
+        const maps = data.mindMaps;
+        return Array.isArray(maps) ? maps : [];
       }
     }
   } catch (error) {
     console.error('Error fetching mind maps from backend:', error);
   }
 
-  // Fallback to localStorage
   return getInitialData().sort((a, b) => b.updatedAt - a.updatedAt);
 };
 
 export const getMindMapById = async (id: string): Promise<MindMap | undefined> => {
   try {
-    // If authenticated, fetch from backend
     if (isAuthenticated()) {
       const response = await fetchWithAuth(`/api/mindmaps/${id}`);
       if (response.ok) {
@@ -56,7 +64,6 @@ export const getMindMapById = async (id: string): Promise<MindMap | undefined> =
     console.error('Error fetching mind map from backend:', error);
   }
 
-  // Fallback to localStorage
   const maps = getInitialData();
   return maps.find(m => m.id === id);
 };
