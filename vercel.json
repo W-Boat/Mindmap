@@ -4,6 +4,12 @@
   "installCommand": "npm install",
   "framework": "vite",
   "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    }
+  ],
   "redirects": [
     {
       "source": "/admin/:path*",
@@ -14,7 +20,28 @@
       "source": "/editor/:path*",
       "destination": "/index.html",
       "permanent": false
+    },
+    {
+      "source": "/mindmaps/:path*",
+      "destination": "/index.html",
+      "permanent": false
+    },
+    {
+      "source": "/dashboard/:path*",
+      "destination": "/index.html",
+      "permanent": false
+    },
+    {
+      "source": "/login",
+      "destination": "/index.html",
+      "permanent": false
+    },
+    {
+      "source": "/register",
+      "destination": "/index.html",
+      "permanent": false
     }
   ]
 }
+
 

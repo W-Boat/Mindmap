@@ -32,8 +32,17 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     return;
   }
 
+  if (req.method === 'GET') {
+    res.status(200).json({
+      message: 'Login API endpoint',
+      method: 'POST',
+      required_fields: ['email', 'password']
+    });
+    return;
+  }
+
   if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed. Use POST.' });
     return;
   }
 
