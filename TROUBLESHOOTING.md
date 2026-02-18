@@ -132,6 +132,32 @@ CREATE TABLE IF NOT EXISTS user_applications (
 
 ## Database Issues
 
+### Issue: "This connection string is meant to be used with a direct connection"
+
+**Fixed!** Updated all API endpoints to use Vercel Postgres pooled connections (`POSTGRES_URL_POOLED`).
+
+**What happened:**
+- Vercel serverless functions need pooled connections for stateless concurrent requests
+- Previous code used `@vercel/postgres` `sql` tag which expects direct connections
+- This was causing 500 errors on all database operations
+
+**Solution applied:**
+- All API endpoints now use `createClient` with `POSTGRES_URL_POOLED`
+- Explicit connection lifecycle management (connect/end)
+- Proper resource cleanup
+
+**What you need to do:**
+1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables
+2. Verify `POSTGRES_URL_POOLED` is set (auto-created with Postgres database)
+3. If not present, check if Postgres is linked to your project
+4. Redeploy the project
+
+**Testing the fix:**
+```bash
+curl https://your-deployment.vercel.app/api/health
+# Should return: "status": "ok", "database": {"connected": true}
+```
+
 ### Issue: "Cannot connect to database"
 
 1. Check Vercel Postgres is linked to your project
