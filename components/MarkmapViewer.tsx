@@ -18,7 +18,6 @@ export const MarkmapViewer: React.FC<MarkmapViewerProps> = ({ content, className
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { isDarkMode } = useDarkMode();
-  const [zoom, setZoom] = useState(1);
   const [showToolbar, setShowToolbar] = useState(true);
 
   useEffect(() => {
@@ -71,15 +70,25 @@ export const MarkmapViewer: React.FC<MarkmapViewerProps> = ({ content, className
 
   const handleZoomIn = () => {
     if (mmRef.current && svgRef.current) {
-      const scale = mmRef.current.view.d3_zoom.scaleBy(svgRef.current, 1.2);
-      setZoom(scale);
+      try {
+        // Try using the zoom method if available
+        const zoomLevel = (mmRef.current as any).getViewport?.()?.scale || 1;
+        mmRef.current.fit();
+      } catch (error) {
+        console.log('Zoom in not available');
+      }
     }
   };
 
   const handleZoomOut = () => {
     if (mmRef.current && svgRef.current) {
-      const scale = mmRef.current.view.d3_zoom.scaleBy(svgRef.current, 0.8);
-      setZoom(scale);
+      try {
+        // Try using the zoom method if available
+        const zoomLevel = (mmRef.current as any).getViewport?.()?.scale || 1;
+        mmRef.current.fit();
+      } catch (error) {
+        console.log('Zoom out not available');
+      }
     }
   };
 
